@@ -1,0 +1,29 @@
+{
+  "name": "goat-lips-arcade",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Goat Lips customer arcade: phone-first browser games for play.goatlips.com",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "build:single": "vite build --mode single --outDir dist-single",
+    "preview": "vite preview --host",
+    "test": "vitest run",
+    "tune": "vitest run test/balance.test.ts --reporter=verbose",
+    "typecheck": "tsc --noEmit",
+    "smoke": "npm run build:single && vitest run test/browser.smoke.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@fontsource/permanent-marker": "^5.3.0",
+    "@types/node": "^26.6.6",
+    "puppeteer-core": "^25.16.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.6",
+    "vite-plugin-singlefile": "^2.3.4",
+    "vitest": "^5.1.0"
+  }
+}
