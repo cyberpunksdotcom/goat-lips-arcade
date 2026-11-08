@@ -1,0 +1,13 @@
+# Internal handoff notes, original slide files, and anything with business figures
+context/
+
+node_modules/
+dist/
+dist-single/
+.vercel/
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+test-output/
