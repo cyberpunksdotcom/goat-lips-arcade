@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LANE_LEN, POUR_TICKS, START_LIPS, TICK_HZ } from '../src/sim/constants';
+import { BEER_TICKS, LANE_LEN, START_LIPS, TICK_HZ } from '../src/sim/constants';
 import { nextRandom, hashString } from '../src/sim/rng';
 import { replay, seedFor, verifyRun } from '../src/sim/replay';
 import { createSim, step } from '../src/sim/sim';
@@ -42,19 +42,20 @@ describe('sim', () => {
     expect(log.endTick / TICK_HZ).toBeLessThan(70);
   });
 
-  it('holding to pour into an empty lane wastes an order and costs a lip', () => {
+  it('holding into an empty bar pours a beer for nobody, which costs a lip', () => {
     const s = createSim(seedFor(PERIOD));
-    step(s, [3]); // press lane 3 before anyone has walked in
+    s.spawnIn = 10_000;
+    step(s, [9]); // hold where the goat stands
     let ticks = 0;
-    while (s.lips === START_LIPS && ticks < 200) {
+    while (s.lips === START_LIPS && ticks < 300) {
       step(s, []);
       ticks++;
     }
     expect(s.lastLoss).toBe('wasted');
-    expect(ticks).toBeGreaterThan(POUR_TICKS);
+    expect(ticks).toBeGreaterThan(BEER_TICKS);
   });
 
-  it('a quick tap only moves the goat; it does not pour', () => {
+  it('a tap on another bar only steps over; it does not toss anything', () => {
     const s = createSim(seedFor(PERIOD));
     step(s, [2]);
     step(s, [8]);
@@ -64,41 +65,76 @@ describe('sim', () => {
     expect(s.lips).toBe(START_LIPS);
   });
 
-  function withOnePatron(wants: 0 | 1) {
+  it('a tap where the goat stands tosses a basket; a hold pours a beer', () => {
+    const s = createSim(seedFor(PERIOD));
+    s.spawnIn = 10_000;
+    step(s, [9]);
+    step(s, []);
+    step(s, [8]);
+    expect(s.orders.map((o) => o.kind)).toEqual([0]);
+    step(s, [9]);
+    for (let i = 0; i < BEER_TICKS; i++) step(s, []);
+    step(s, [8]);
+    expect(s.orders.map((o) => o.kind)).toEqual([0, 1]);
+  });
+
+  it('letting go partway through a pour cancels it (no basket, no beer)', () => {
+    const s = createSim(seedFor(PERIOD));
+    s.spawnIn = 10_000;
+    step(s, [9]);
+    for (let i = 0; i < BEER_TICKS - 6; i++) step(s, []);
+    step(s, [8]);
+    expect(s.orders.length).toBe(0);
+  });
+
+  function withOnePatron(wants: 0 | 1, send: 0 | 1 = wants) {
     const s = createSim(seedFor(PERIOD));
     s.spawnIn = 10_000; // nobody else walks in
     s.patrons.push({ id: 999, lane: 2, pos: LANE_LEN, prev: LANE_LEN, speed: 150, look: 0, wants });
-    step(s, [2]);
-    for (let i = 1; i < POUR_TICKS; i++) step(s, []);
+    step(s, [2]); // step to bar 2
     step(s, [8]);
-    while (s.served === 0 && !s.over) step(s, []);
+    step(s, [9]); // then tap or hold there
+    const holdFor = send === 0 ? 2 : BEER_TICKS;
+    for (let i = 0; i < holdFor; i++) step(s, []);
+    step(s, [8]);
+    while (s.served === 0 && s.refused === 0 && !s.over) step(s, []);
     return s;
   }
 
-  it('serving a drink scores, and the empty comes back to be caught', () => {
+  it('a beer scores 150, and its empty comes back to be grabbed', () => {
     const s = withOnePatron(1);
     expect(s.served).toBe(1);
-    expect(s.score).toBe(100);
-    expect(s.empties.length).toBe(1);
-    while (s.empties.length > 0 && !s.over) step(s, []); // goat stays in lane 2
-    expect(s.caught).toBe(1);
     expect(s.score).toBe(150);
+    expect(s.empties.length).toBe(1);
+    while (s.empties.length > 0 && !s.over) step(s, []); // goat stays in bar 2
+    expect(s.caught).toBe(1);
+    expect(s.score).toBe(200);
   });
 
-  it('food baskets do not come back', () => {
+  it('a basket scores 100 and does not come back', () => {
     const s = withOnePatron(0);
     expect(s.served).toBe(1);
+    expect(s.score).toBe(100);
     expect(s.empties.length).toBe(0);
+  });
+
+  it('the wrong order is sent back: no points, streak lost, patron keeps coming, no lip lost', () => {
+    const s = withOnePatron(0, 1); // wants a basket, gets a beer
+    expect(s.refused).toBe(1);
+    expect(s.served).toBe(0);
+    expect(s.score).toBe(0);
+    expect(s.patrons.length).toBe(1);
+    expect(s.lips).toBe(START_LIPS);
   });
 
   it('an empty teeters at the edge before falling, so there is time to grab it', () => {
     const s = withOnePatron(1);
-    step(s, [4]); // step to lane 0, away from the empty
+    step(s, [4]); // step to bar 0, away from the empty
     while (s.empties.length > 0 && s.empties[0].pos > 0) step(s, []);
     for (let i = 0; i < 40; i++) step(s, []); // ~2/3 s at the edge: still there
     expect(s.empties.length).toBe(1);
     expect(s.lips).toBe(START_LIPS);
-    step(s, [6]); // step to lane 2
+    step(s, [6]); // step to bar 2
     step(s, []);
     expect(s.caught).toBe(1);
     expect(s.lips).toBe(START_LIPS);

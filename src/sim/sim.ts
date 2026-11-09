@@ -23,9 +23,11 @@ import {
   PATRON_SPEED_START,
   PHASES,
   PHASE_TICKS,
+  BEER_TICKS,
+  POINTS_BREW,
   POINTS_CATCH,
-  POINTS_SERVE,
-  POUR_TICKS,
+  POINTS_CHEW,
+  TAP_TICKS,
   RAMP_TICKS,
   RESTART_SPAWN_TICKS,
   SIM_VERSION,
@@ -39,7 +41,7 @@ import {
 } from './constants';
 import { nextRandom } from './rng';
 
-/** 0 = chew (food basket), 1 = brew (mug). Purely cosmetic. */
+/** 0 = chew (sandwich basket, tossed with a tap), 1 = brew (beer, poured with a hold). */
 export type Kind = 0 | 1;
 export type LossReason = 'waited' | 'wasted' | 'dropped';
 export type OverReason = 'lips' | 'closing';
@@ -70,6 +72,7 @@ export interface Empty extends Order {
 export type SimEvent =
   | { t: 'launch'; lane: number; kind: Kind }
   | { t: 'serve'; lane: number; pos: number; points: number; mult: number; look: number; kind: Kind }
+  | { t: 'refuse'; lane: number; pos: number; wanted: Kind }
   | { t: 'catch'; lane: number; points: number }
   | { t: 'loss'; reason: LossReason; lane: number; pos: number; lipsLeft: number }
   | { t: 'phase'; index: number }
@@ -87,9 +90,17 @@ export interface SimState {
   streak: number;
   served: number;
   caught: number;
+  /** Wrong orders sent back. */
+  refused: number;
   goatLane: number;
-  pouring: boolean;
-  pour: number;
+  /** Finger (or Space) is down. */
+  holding: boolean;
+  /** Ticks held so far; resets each time a beer slides out. */
+  held: number;
+  /** This press began by stepping to another bar, so letting go doesn't toss a basket. */
+  holdMoved: boolean;
+  /** A beer already slid out during this press, so letting go doesn't toss a basket. */
+  holdPoured: boolean;
   stun: number;
   spawnIn: number;
   phase: number;
@@ -115,9 +126,12 @@ export function createSim(seed: number): SimState {
     streak: 0,
     served: 0,
     caught: 0,
+    refused: 0,
     goatLane: 1,
-    pouring: false,
-    pour: 0,
+    holding: false,
+    held: 0,
+    holdMoved: false,
+    holdPoured: false,
     stun: 0,
     spawnIn: 30,
     phase: 0,
@@ -164,12 +178,13 @@ export function step(s: SimState, inputs: readonly number[]): void {
   for (const o of s.orders) o.prev = o.pos;
   for (const e of s.empties) e.prev = e.pos;
 
-  // Pouring: hold to fill; every POUR_TICKS while held, an order slides out.
-  if (s.pouring) {
-    s.pour++;
-    if (s.pour >= POUR_TICKS) {
-      s.pour = 0;
-      launch(s);
+  // Holding pours a beer; it slides out when full, and keeps pouring while held.
+  if (s.holding) {
+    s.held++;
+    if (s.held >= BEER_TICKS) {
+      s.held = 0;
+      s.holdPoured = true;
+      launch(s, 1);
     }
   }
 
@@ -198,7 +213,8 @@ export function step(s: SimState, inputs: readonly number[]): void {
     o.pos += MUG_SPEED;
     const target = frontPatron(s, o.lane);
     if (target && o.pos >= target.pos) {
-      serve(s, target, o);
+      if (o.kind === target.wants) serve(s, target, o);
+      else refuse(s, target);
       continue;
     }
     if (o.pos >= LANE_LEN) {
@@ -242,19 +258,33 @@ export function step(s: SimState, inputs: readonly number[]): void {
 function applyInput(s: SimState, code: number): void {
   if (s.over || s.stun > 0) return;
   if (code >= 0 && code < LANES) {
+    // Press on a bar. Elsewhere: step there (holding still pours a beer there). Here: tap or hold.
+    const moved = code !== s.goatLane;
     s.goatLane = code;
-    s.pouring = true;
-    s.pour = 0;
+    startHold(s, moved);
   } else if (code >= INPUT_MOVE_BASE && code < INPUT_MOVE_BASE + LANES) {
-    s.goatLane = code - INPUT_MOVE_BASE;
-    s.pour = 0;
+    const lane = code - INPUT_MOVE_BASE;
+    if (lane !== s.goatLane) {
+      s.goatLane = lane;
+      if (s.holding) {
+        s.held = 0;
+        s.holdMoved = true;
+      }
+    }
   } else if (code === INPUT_RELEASE) {
-    s.pouring = false;
-    s.pour = 0;
+    if (s.holding && !s.holdMoved && !s.holdPoured && s.held <= TAP_TICKS) launch(s, 0);
+    s.holding = false;
+    s.held = 0;
   } else if (code === INPUT_PRESS_HERE) {
-    s.pouring = true;
-    s.pour = 0;
+    startHold(s, false);
   }
+}
+
+function startHold(s: SimState, moved: boolean): void {
+  s.holding = true;
+  s.held = 0;
+  s.holdMoved = moved;
+  s.holdPoured = false;
 }
 
 function rand(s: SimState, n: number): number {
@@ -282,21 +312,8 @@ function frontPatron(s: SimState, lane: number): Patron | undefined {
   return undefined;
 }
 
-function launch(s: SimState): void {
+function launch(s: SimState, kind: Kind): void {
   const lane = s.goatLane;
-  // Cosmetic: slide whatever the next un-served patron in this lane wants.
-  let inFlight = 0;
-  for (const o of s.orders) if (o.lane === lane) inFlight++;
-  let kind: Kind = 1;
-  let seen = 0;
-  for (const p of s.patrons) {
-    if (p.lane !== lane) continue;
-    if (seen === inFlight) {
-      kind = p.wants;
-      break;
-    }
-    seen++;
-  }
   s.orders.push({ id: s.nextId++, lane, pos: 0, prev: 0, kind });
   s.events.push({ t: 'launch', lane, kind });
 }
@@ -328,12 +345,19 @@ function serve(s: SimState, p: Patron, o: Order): void {
   s.streak++;
   s.served++;
   const mult = multiplier(s.streak);
-  const points = POINTS_SERVE * mult;
+  const points = (o.kind === 0 ? POINTS_CHEW : POINTS_BREW) * mult;
   s.score += points;
   if (o.kind === 1) {
     s.empties.push({ id: s.nextId++, lane: p.lane, pos: p.pos, prev: p.pos, kind: 1, wait: DRINK_TICKS, edge: 0 });
   }
   s.events.push({ t: 'serve', lane: p.lane, pos: p.pos, points, mult, look: p.look, kind: o.kind });
+}
+
+/** Wrong order: the patron sends it back and keeps waiting for what they asked for. */
+function refuse(s: SimState, p: Patron): void {
+  s.streak = 0;
+  s.refused++;
+  s.events.push({ t: 'refuse', lane: p.lane, pos: p.pos, wanted: p.wants });
 }
 
 function loseLip(s: SimState, reason: LossReason, lane: number, pos: number): void {
@@ -349,14 +373,14 @@ function loseLip(s: SimState, reason: LossReason, lane: number, pos: number): vo
   s.patrons = [];
   s.orders = [];
   s.empties = [];
-  s.pouring = false;
-  s.pour = 0;
+  s.holding = false;
+  s.held = 0;
   s.spawnIn = RESTART_SPAWN_TICKS;
 }
 
 function end(s: SimState, reason: OverReason): void {
   s.over = true;
   s.overReason = reason;
-  s.pouring = false;
+  s.holding = false;
   s.events.push({ t: 'over', reason });
 }

@@ -32,11 +32,18 @@ The November schedule screens use a cream / teal / navy / red look. That stays w
 - **Headlines and score:** Permanent Marker, self-hosted, free license. It's close to the slide headlines.
 - **Everything else:** the phone's system font, so it stays readable at small sizes and costs nothing to load.
 
+## Head Goat Notes
+
+- The in-house notice format: a cream card on black, the "Head Goat Notes:" heading, the message, and a sign-off from **Larry Cowan** with his painted portrait. (The handoff spelled it "Coan"; the artwork says Cowan.)
+- `src/assets/head-goat-notes.webp` is the original artwork with the holiday message cleared. The game sets its own text over it in Arvo, a free slab serif close to the original.
+- Anything signed with Larry's name should get his OK.
+- **Uses:** shift instructions on the title screen now; the weekly winner announcement later.
+
 ## The mascot
 
 - **Hero:** the gray goat waiter with a red collar, gold bell, a mug in one hand and a burger tray overhead. There's also a sunglasses variant.
 - **Patrons:** simple goat faces for now. The Phase 1 art pass draws them in the same hand-drawn style.
-- **Placeholder:** the cutout in `src/assets/*.placeholder.webp` came from the cover slide. Replace it with the original "Right-Facing Goat Waiter Mascot.png".
+- **In the game:** `src/assets/goat-waiter.webp`, cut from Brad's logo + mascot image (no sunglasses). The logo is `logo-stacked.webp`, used as supplied.
 
 ## Voice for game copy
 
@@ -67,7 +74,6 @@ The November schedule screens use a cream / teal / navy / red look. That stays w
 
 ## Assets still needed
 
-1. The original mascot art, ideally a transparent PNG at 1000 px or more, plus any other poses.
-2. The logo as a transparent PNG or SVG.
-3. Optional: photos of the real bar and deck, to guide background art.
-4. Optional: a recording from a house musician (with permission) for game music.
+1. Optional: a layered or vector original of the goat waiter, plus any other poses.
+2. Optional: photos of the real bar and deck, to guide background art.
+3. Optional: a recording from a house musician (with permission) for game music.

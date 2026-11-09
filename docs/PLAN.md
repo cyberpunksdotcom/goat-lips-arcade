@@ -1,6 +1,6 @@
 # Goat Lips Arcade: plan
 
-_Last updated Nov 8, 2026. Owner: Brad Barnes. Status: Phase 0 done; greybox ready for phone testing._
+_Last updated Nov 8, 2026. Owner: Brad Barnes. Status: Phase 1 underway. A beta with real art and tap/hold controls is ready to share from a vercel.app address._
 
 ## What we're building
 
@@ -61,7 +61,7 @@ Goal: staff and a handful of regulars play it on their own phones and want to sh
 1. Playtest on real phones (iPhone Safari and Android Chrome, portrait and landscape). Tune difficulty from what people actually do.
 2. Art pass with the real mascot and logo files. Draw patron goats in the same hand-drawn style. Add sound.
 3. Build the share card: a 1080×1350 image with the score, the week, the goat, play.goatlips.com and "Just off Davis Hwy". It goes to the phone's share sheet and falls back to a download. Add a static link-preview image.
-4. Deploy on Vercel and point play.goatlips.com at it (one DNS record).
+4. Deploy on Vercel as a shareable beta on the vercel.app address, hidden from search engines. Point play.goatlips.com at it only at launch (one DNS record).
 5. Add a short privacy note and simple analytics.
 
 **Exit:** five people outside the project play on their own phones without help, nothing is broken, and Brad signs off on the art and copy.
@@ -112,7 +112,7 @@ Phone browser ─► play.goatlips.com (Vercel, static files)
 ## Hosting and costs
 
 - **play.goatlips.com**: add one CNAME record wherever goatlips.com's DNS is managed. Vercel shows the exact value when the domain is added. The main site isn't touched.
-- **Vercel**: the free Hobby plan is for non-commercial personal use only. A Goat Lips promotion counts as commercial, so it needs a Pro team ($20/month per member). That's fine if the Meridian Studioworks team is already on Pro. *(To confirm.)*
+- **Vercel**: Brad's paid team (Meridian Studioworks). The free Hobby plan wouldn't allow a commercial project; a paid plan does.
 - **Database**: Neon's free plan, billed through Vercel if it's ever upgraded.
 - **GitHub**: private repo, free.
 - **Expected total**: $0–20/month.

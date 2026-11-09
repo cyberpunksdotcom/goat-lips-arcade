@@ -1,6 +1,7 @@
 import '@fontsource/permanent-marker';
+import '@fontsource/arvo/400.css';
 import '../styles.css';
-import goatUrl from '../assets/goat-waiter.placeholder.webp';
+import goatUrl from '../assets/goat-waiter.webp';
 import {
   INPUT_MOVE_BASE,
   INPUT_PRESS_HERE,
@@ -28,6 +29,7 @@ const multEl = $('mult');
 const phaseEl = $('phase-label');
 const lipsEl = $('lips');
 const banner = $('banner');
+const legend = $('legend');
 const screens = { title: $('screen-title'), pause: $('screen-pause'), over: $('screen-over') };
 const soundBtn = $<HTMLButtonElement>('sound-btn');
 
@@ -100,6 +102,7 @@ function updateHud(): void {
   if (sim.phase !== shown.phase) {
     phaseEl.textContent = PHASES[sim.phase];
     shown.phase = sim.phase;
+    legend.hidden = mode !== 'playing' || sim.phase > 1;
   }
   if (sim.lips !== shown.lips) {
     lipsEl.innerHTML = '';
@@ -109,6 +112,19 @@ function updateHud(): void {
     }
     lipsEl.setAttribute('aria-label', `${sim.lips} lips left`);
     shown.lips = sim.lips;
+  }
+}
+
+let legendSpot = '';
+function placeLegend(): void {
+  if (legend.hidden) return;
+  const L = renderer.layout;
+  const away = sim.goatLane <= 1;
+  // Portrait: bottom corner away from the goat. Landscape: inside the goat's zone, top or bottom away from it.
+  const spot = L.portrait ? (away ? 'at-bottom at-right' : 'at-bottom at-left') : away ? 'at-bottom at-right' : 'at-top at-right';
+  if (spot !== legendSpot) {
+    legend.className = `legend ${spot}`;
+    legendSpot = spot;
   }
 }
 
@@ -149,7 +165,8 @@ function startGame(): void {
   mode = 'playing';
   showScreen(null);
   banner.hidden = true;
-  showBanner(PHASES[0], 'Lunch is mostly food. Food baskets don’t come back.', false, 2200);
+  legend.hidden = false;
+  showBanner(PHASES[0], 'Red bubble: tap for a sandwich basket. Gold bubble: hold for a beer.', false, 3000);
 }
 
 function pause(): void {
@@ -171,6 +188,7 @@ function resume(): void {
 
 function finish(): void {
   mode = 'over';
+  legend.hidden = true;
   const best = Math.max(load('best', 0), sim.score);
   save('best', best);
   const run: RunLog = { v: SIM_VERSION, period: period.id, inputs: log.slice(), endTick: sim.tick, score: sim.score };
@@ -194,7 +212,10 @@ function handleEvents(now: number): void {
   for (const e of sim.events) {
     switch (e.t) {
       case 'launch':
-        sound.play('launch');
+        sound.play(e.kind === 0 ? 'toss' : 'pour');
+        break;
+      case 'refuse':
+        sound.play('refuse');
         break;
       case 'serve':
         sound.play('serve');
@@ -240,6 +261,7 @@ function frame(now: number): void {
     }
     if (steps >= 10) acc = 0; // fell far behind (slow device or tab hiccup): don't fast-forward
     if (queue.length === 0) intendedLane = sim.goatLane;
+    placeLegend();
   }
   renderer.draw(sim, mode === 'playing' ? acc / TICK_MS : 0, now);
   if (mode !== 'title') updateHud();
@@ -338,6 +360,7 @@ $('pause-btn').addEventListener('click', pause);
 $('resume-btn').addEventListener('click', resume);
 $('quit-btn').addEventListener('click', () => {
   mode = 'title';
+  legend.hidden = true;
   showScreen('title');
 });
 soundBtn.addEventListener('click', toggleSound);

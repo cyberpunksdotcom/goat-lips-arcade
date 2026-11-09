@@ -1,7 +1,7 @@
 // Canvas drawing for Slide 'Em. Reads sim state, never changes it.
-// Visual-only randomness (shake, sparkle) lives here and does not affect scoring.
+// Visual-only randomness (shake) lives here and does not affect scoring.
 
-import { EDGE_TICKS, LANES, LANE_LEN, POUR_TICKS, TICK_MS } from '../sim/constants';
+import { BEER_TICKS, EDGE_TICKS, LANES, LANE_LEN } from '../sim/constants';
 import type { Kind, SimEvent, SimState } from '../sim/sim';
 
 export interface Insets {
@@ -39,7 +39,7 @@ export function computeLayout(w: number, h: number, dpr: number, safe: Insets, h
     const top = safe.t + hudH + 2;
     const bottom = h - safe.b - 4;
     const lane = (right - left) / LANES;
-    const goatZone = Math.min(150, Math.max(92, (bottom - top) * 0.19));
+    const goatZone = Math.min(160, Math.max(100, (bottom - top) * 0.2));
     return {
       w, h, dpr, portrait, lane,
       laneStart: left,
@@ -47,7 +47,7 @@ export function computeLayout(w: number, h: number, dpr: number, safe: Insets, h
       door: top + 22,
       goat: bottom - goatZone / 2,
       goatZone,
-      item: Math.min(lane * 0.44, 44),
+      item: Math.min(lane * 0.46, 46),
     };
   }
   const top = safe.t + hudH;
@@ -55,7 +55,7 @@ export function computeLayout(w: number, h: number, dpr: number, safe: Insets, h
   const left = safe.l + 6;
   const right = w - safe.r - 6;
   const lane = (bottom - top) / LANES;
-  const goatZone = Math.min(170, Math.max(104, (right - left) * 0.17));
+  const goatZone = Math.min(170, Math.max(110, (right - left) * 0.17));
   return {
     w, h, dpr, portrait, lane,
     laneStart: top,
@@ -63,7 +63,7 @@ export function computeLayout(w: number, h: number, dpr: number, safe: Insets, h
     door: left + 26,
     goat: right - goatZone / 2,
     goatZone,
-    item: Math.min(lane * 0.5, 44),
+    item: Math.min(lane * 0.52, 46),
   };
 }
 
@@ -93,6 +93,7 @@ interface Popup {
   text: string;
   color: string;
   born: number;
+  size: number;
 }
 interface Leaver {
   lane: number;
@@ -109,6 +110,10 @@ export class Renderer {
   private leavers: Leaver[] = [];
   private flashUntil = 0;
   private shakeUntil = 0;
+  private tossAt = -1e9;
+  private slideAt = -1e9;
+  private hurtAt = -1e9;
+  private cheerAt = -1e9;
   private goatVisualLane = 1;
   private light = [...PHASE_LIGHT[0]];
   private reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
@@ -142,26 +147,40 @@ export class Renderer {
     this.popups = [];
     this.leavers = [];
     this.goatVisualLane = goatLane;
-    this.flashUntil = 0;
-    this.shakeUntil = 0;
+    this.flashUntil = this.shakeUntil = 0;
+    this.tossAt = this.slideAt = this.hurtAt = this.cheerAt = -1e9;
   }
 
-  /** React to what just happened in the sim (popups, flashes). */
+  /** React to what just happened in the sim (popups, flashes, goat animation). */
   onEvents(events: readonly SimEvent[], now: number): void {
+    const L = this.L;
     for (const e of events) {
-      if (e.t === 'serve') {
-        const [x, y] = at(this.L, e.lane, e.pos);
-        this.popups.push({ x, y, text: `+${e.points}`, color: '#f4b223', born: now });
+      if (e.t === 'launch') {
+        if (e.kind === 0) this.tossAt = now;
+        else this.slideAt = now;
+      } else if (e.t === 'serve') {
+        const [x, y] = at(L, e.lane, e.pos);
+        this.popups.push({ x, y, text: `+${e.points}`, color: '#f4b223', born: now, size: 0.55 });
         this.leavers.push({ lane: e.lane, pos: e.pos, look: e.look, born: now });
+        if (e.mult > 1 && e.mult !== this.lastMult) this.cheerAt = now;
+        this.lastMult = e.mult;
+      } else if (e.t === 'refuse') {
+        const [x, y] = at(L, e.lane, e.pos);
+        const text = e.wanted === 0 ? 'Sandwich, please!' : 'Beer, please!';
+        this.popups.push({ x, y, text, color: '#ff8a7a', born: now, size: 0.4 });
+        this.lastMult = 1;
       } else if (e.t === 'catch') {
-        const [x, y] = at(this.L, e.lane, 0);
-        this.popups.push({ x, y, text: `+${e.points}`, color: '#f5edd9', born: now });
+        const [x, y] = at(L, e.lane, 0);
+        this.popups.push({ x, y, text: `+${e.points}`, color: '#f5edd9', born: now, size: 0.5 });
       } else if (e.t === 'loss') {
         this.flashUntil = now + 450;
+        this.hurtAt = now;
+        this.lastMult = 1;
         if (!this.reduceMotion) this.shakeUntil = now + 320;
       }
     }
   }
+  private lastMult = 1;
 
   draw(s: SimState, alpha: number, now: number): void {
     const { ctx, L } = this;
@@ -172,10 +191,8 @@ export class Renderer {
       const k = (this.shakeUntil - now) / 320;
       ctx.translate((Math.random() - 0.5) * 10 * k, (Math.random() - 0.5) * 10 * k);
     }
-
     const lerp = (a: number, b: number) => a + (b - a) * alpha;
 
-    // Highlight the goat's lane.
     this.goatVisualLane += (s.goatLane - this.goatVisualLane) * 0.45;
     if (Math.abs(s.goatLane - this.goatVisualLane) < 0.01) this.goatVisualLane = s.goatLane;
     this.laneGlow(s.goatLane);
@@ -189,22 +206,22 @@ export class Renderer {
       drawPatron(ctx, x, y, L.item * 0.62, v.look, null);
       ctx.globalAlpha = 1;
     }
-
     for (const p of s.patrons) {
       const [x, y] = at(L, p.lane, lerp(p.prev, p.pos));
       drawPatron(ctx, x, y, L.item * 0.62, p.look, p.wants);
     }
     for (const o of s.orders) {
       const [x, y] = at(L, o.lane, lerp(o.prev, o.pos));
-      drawOrder(ctx, x, y, L.item * 0.8, o.kind, false, 0);
+      drawOrder(ctx, x, y, L.item * 0.82, o.kind, false, 0);
     }
     for (const e of s.empties) {
       const [x, y] = at(L, e.lane, lerp(e.prev, e.pos));
       const tilt = e.edge > 0 ? Math.sin(now / 55) * (0.18 + (0.5 * e.edge) / EDGE_TICKS) : 0;
-      drawOrder(ctx, x, y, L.item * 0.8, e.kind, true, tilt, e.edge / EDGE_TICKS);
+      drawOrder(ctx, x, y, L.item * 0.82, e.kind, true, tilt, e.edge / EDGE_TICKS);
     }
 
     this.drawGoat(s, now);
+    this.drawPour(s);
 
     // Phase lighting.
     const target = PHASE_LIGHT[s.phase] ?? PHASE_LIGHT[0];
@@ -212,20 +229,21 @@ export class Renderer {
     ctx.fillStyle = `rgba(${this.light[0] | 0},${this.light[1] | 0},${this.light[2] | 0},${this.light[3].toFixed(3)})`;
     ctx.fillRect(-20, -20, L.w + 40, L.h + 40);
 
-    // Score popups.
-    this.popups = this.popups.filter((p) => now - p.born < 750);
+    // Popups.
+    this.popups = this.popups.filter((p) => now - p.born < 800);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (const p of this.popups) {
-      const k = (now - p.born) / 750;
+      const k = (now - p.born) / 800;
       ctx.globalAlpha = 1 - k * k;
-      ctx.font = `${Math.round(L.item * 0.55)}px "Permanent Marker", system-ui, sans-serif`;
+      ctx.font = `${Math.round(L.item * p.size)}px "Permanent Marker", system-ui, sans-serif`;
       ctx.lineWidth = 4;
-      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
-      const dy = -26 * k - L.item * 0.6;
-      ctx.strokeText(p.text, p.x, p.y + dy);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      const dy = -26 * k - L.item * 0.65;
+      const x = Math.max(60, Math.min(L.w - 60, p.x));
+      ctx.strokeText(p.text, x, p.y + dy);
       ctx.fillStyle = p.color;
-      ctx.fillText(p.text, p.x, p.y + dy);
+      ctx.fillText(p.text, x, p.y + dy);
     }
     ctx.globalAlpha = 1;
 
@@ -248,39 +266,87 @@ export class Renderer {
     else ctx.fillRect(L.door - 20, a, L.bar - L.door + 20, L.lane - 6);
   }
 
+  /** Beer pour meter at the end of the goat's bar: a ring plus a mug filling up. */
+  private drawPour(s: SimState): void {
+    if (!s.holding) return;
+    const { ctx, L } = this;
+    // A little way up the bar, so the goat's tray never covers it.
+    const [x, y] = at(L, s.goatLane, LANE_LEN * (L.portrait ? 0.09 : 0.06));
+    const fill = Math.min(1, s.held / BEER_TICKS);
+    const r = L.item * 0.62;
+    ctx.fillStyle = 'rgba(20,10,4,0.55)';
+    ctx.beginPath();
+    ctx.arc(x, y, r + 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = '#f4b223';
+    ctx.beginPath();
+    ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
+    ctx.stroke();
+    drawMugFilling(ctx, x, y, r * 1.1, fill);
+  }
+
   private drawGoat(s: SimState, now: number): void {
     const { ctx, L } = this;
     const img = this.goatImg;
+    const aspect = img.naturalWidth ? img.naturalWidth / img.naturalHeight : 0.9;
     const across = L.laneStart + L.lane * (this.goatVisualLane + 0.5);
-    const hgt = L.portrait ? Math.min(L.goatZone * 0.92, L.lane * 1.25) : Math.min(L.lane * 1.12, L.goatZone * 0.9);
-    const wid = img.naturalWidth ? (hgt * img.naturalWidth) / img.naturalHeight : hgt;
-    const bob = s.pouring ? Math.sin(now / 70) * 2 : 0;
-    let [cx, cy] = L.portrait ? [across, L.goat + bob] : [L.goat, across + bob];
-    if (L.portrait) cx = Math.max(wid / 2 + 2, Math.min(L.w - wid / 2 - 2, cx));
-    else cy = Math.max(hgt / 2 + 2, Math.min(L.h - hgt / 2 - 2, cy));
+    let hgt: number;
+    let footX: number;
+    let footY: number;
+    if (L.portrait) {
+      hgt = Math.min(L.goatZone * 1.12, L.lane * 1.9);
+      footX = across;
+      footY = L.bar + L.goatZone - 2;
+      const half = (hgt * aspect) / 2;
+      footX = Math.max(half + 2, Math.min(L.w - half - 2, footX));
+    } else {
+      hgt = Math.min(L.lane * 1.75, L.goatZone * 1.25);
+      footX = L.goat;
+      footY = across + hgt / 2;
+      footY = Math.max(hgt + 2, Math.min(L.h - 2, footY));
+    }
+    const wid = hgt * aspect;
+
+    // Animation: idle bob, lean while pouring, a quick shove on a toss, a shake when hurt.
+    let lean = 0;
+    let push = 0;
+    let shake = 0;
+    let squash = 1 + Math.sin(now / 420) * 0.012;
+    const toss = (now - this.tossAt) / 200;
+    if (toss >= 0 && toss < 1) {
+      push += Math.sin(toss * Math.PI) * hgt * 0.1;
+      lean -= Math.sin(toss * Math.PI) * 0.14;
+    }
+    const slide = (now - this.slideAt) / 220;
+    if (slide >= 0 && slide < 1) push += Math.sin(slide * Math.PI) * hgt * 0.06;
+    if (s.holding) lean -= 0.06 + Math.sin(now / 45) * 0.012;
+    const hurt = (now - this.hurtAt) / 450;
+    if (hurt >= 0 && hurt < 1 && !this.reduceMotion) shake = Math.sin(now / 22) * 6 * (1 - hurt);
+    const cheer = (now - this.cheerAt) / 380;
+    if (cheer >= 0 && cheer < 1) squash += Math.sin(cheer * Math.PI) * 0.08;
+
+    ctx.save();
+    if (L.portrait) ctx.translate(footX + shake, footY - push);
+    else ctx.translate(footX - push, footY + shake);
+
+    // Shadow under the hooves.
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, -2, wid * 0.32, Math.max(4, wid * 0.06), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.rotate(lean * (L.portrait ? 1 : -1) * 0.6);
+    ctx.scale(1 / squash, squash);
     if (img.complete && img.naturalWidth) {
-      ctx.drawImage(img, cx - wid / 2, cy - hgt / 2, wid, hgt);
+      ctx.drawImage(img, -wid / 2, -hgt, wid, hgt);
     } else {
       ctx.fillStyle = '#aaa59f';
       ctx.beginPath();
-      ctx.arc(cx, cy, hgt / 3, 0, Math.PI * 2);
+      ctx.arc(0, -hgt / 2, hgt / 3, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Pour meter: a ring at the end of the bar in the goat's lane.
-    if (s.pouring) {
-      const [rx, ry] = at(L, s.goatLane, 0);
-      const fill = Math.min(1, (s.pour + 1) / POUR_TICKS);
-      const r = L.item * 0.55;
-      ctx.lineWidth = 5;
-      ctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      ctx.beginPath();
-      ctx.arc(rx, ry, r, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = '#f4b223';
-      ctx.beginPath();
-      ctx.arc(rx, ry, r, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
-      ctx.stroke();
-    }
+    ctx.restore();
   }
 }
 
@@ -288,11 +354,10 @@ export class Renderer {
 
 function paintBackground(c: CanvasRenderingContext2D, L: Layout): void {
   const { w, h } = L;
-  // Floor: dark planks running along the bars.
   c.fillStyle = '#24160d';
   c.fillRect(0, 0, w, h);
   let seed = 7;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const plank = 26;
   for (let i = 0; i * plank < (L.portrait ? w : h) + plank; i++) {
     const shade = 28 + Math.floor(rnd() * 14);
@@ -301,7 +366,6 @@ function paintBackground(c: CanvasRenderingContext2D, L: Layout): void {
     else c.fillRect(0, i * plank, w, plank - 2);
   }
 
-  // Bars: lighter wood tops with grain, a brass rail at the goat's end.
   for (let lane = 0; lane < LANES; lane++) {
     const a = L.laneStart + L.lane * lane;
     const inset = Math.max(5, L.lane * 0.12);
@@ -334,7 +398,6 @@ function paintBackground(c: CanvasRenderingContext2D, L: Layout): void {
     }
   }
 
-  // Back bar behind the goat.
   c.fillStyle = 'rgba(12,6,2,0.55)';
   if (L.portrait) c.fillRect(0, L.bar + 10, w, h - L.bar);
   else c.fillRect(L.bar + 10, 0, w - L.bar, h);
@@ -350,7 +413,6 @@ function paintBackground(c: CanvasRenderingContext2D, L: Layout): void {
   }
   c.stroke();
 
-  // String lights over the door.
   const n = 12;
   for (let i = 0; i < n; i++) {
     const t = (i + 0.5) / n;
@@ -369,11 +431,10 @@ function paintBackground(c: CanvasRenderingContext2D, L: Layout): void {
   }
 }
 
-// ---------- sprites (drawn, placeholder style) ----------
+// ---------- sprites (drawn) ----------
 
 function drawPatron(c: CanvasRenderingContext2D, x: number, y: number, r: number, look: number, wants: Kind | null): void {
   const coat = COATS[look % COATS.length];
-  // Horns
   c.strokeStyle = '#6b4a2b';
   c.lineCap = 'round';
   c.lineWidth = r * 0.24;
@@ -383,7 +444,6 @@ function drawPatron(c: CanvasRenderingContext2D, x: number, y: number, r: number
   c.moveTo(x + r * 0.35, y - r * 0.7);
   c.quadraticCurveTo(x + r * 0.75, y - r * 1.45, x + r * 1.05, y - r * 1.15);
   c.stroke();
-  // Ears
   c.fillStyle = coat;
   c.strokeStyle = '#2e2e2e';
   c.lineWidth = 1.5;
@@ -393,34 +453,32 @@ function drawPatron(c: CanvasRenderingContext2D, x: number, y: number, r: number
     c.fill();
     c.stroke();
   }
-  // Head
   c.beginPath();
   c.ellipse(x, y, r * 0.78, r * 0.92, 0, 0, Math.PI * 2);
   c.fill();
   c.stroke();
-  // Snout
   c.fillStyle = look === 2 || look === 3 ? '#c9a58c' : '#f2d9cf';
   c.beginPath();
   c.ellipse(x, y + r * 0.45, r * 0.45, r * 0.33, 0, 0, Math.PI * 2);
   c.fill();
-  // Eyes
   c.fillStyle = '#1b1b1b';
   c.beginPath();
   c.arc(x - r * 0.3, y - r * 0.15, r * 0.11, 0, Math.PI * 2);
   c.arc(x + r * 0.3, y - r * 0.15, r * 0.11, 0, Math.PI * 2);
   c.fill();
-  // Order bubble
+  // What they want, in a bubble: red ring = sandwich basket (tap), gold ring = beer (hold).
   if (wants !== null) {
-    const bx = x + r * 1.05;
-    const by = y + r * 0.75;
+    const bx = x + r * 1.0;
+    const by = y + r * 0.85;
+    const br = r * 0.68;
     c.fillStyle = '#f5edd9';
-    c.strokeStyle = '#2e2e2e';
-    c.lineWidth = 1.5;
     c.beginPath();
-    c.arc(bx, by, r * 0.55, 0, Math.PI * 2);
+    c.arc(bx, by, br, 0, Math.PI * 2);
     c.fill();
+    c.lineWidth = Math.max(2, r * 0.12);
+    c.strokeStyle = wants === 0 ? '#d11b1b' : '#c67a11';
     c.stroke();
-    drawOrder(c, bx, by, r * 0.8, wants, false, 0);
+    drawOrder(c, bx, by + (wants === 0 ? r * 0.08 : 0), r * 0.98, wants, false, 0);
   }
 }
 
@@ -438,9 +496,8 @@ function drawOrder(
   c.translate(x, y);
   if (tilt) c.rotate(tilt);
   c.lineWidth = Math.max(1.5, s * 0.06);
-  c.strokeStyle = empty ? `rgb(${245},${Math.round(237 - 180 * danger)},${Math.round(217 - 190 * danger)})` : '#2e2e2e';
+  c.strokeStyle = empty ? `rgb(245,${Math.round(237 - 180 * danger)},${Math.round(217 - 190 * danger)})` : '#2e2e2e';
   if (kind === 1) {
-    // Mug
     const bw = s * 0.56;
     const bh = s * 0.7;
     const top = -bh / 2;
@@ -462,14 +519,16 @@ function drawOrder(
       c.fill();
     }
   } else {
-    // Basket with a sandwich
-    const bw = s * 0.8;
+    // Red basket with a sandwich on top
+    const bw = s * 0.84;
     const bh = s * 0.38;
-    c.fillStyle = empty ? 'transparent' : '#d9a35a';
+    c.fillStyle = '#d9a35a';
     c.beginPath();
     c.ellipse(0, -bh * 0.25, bw * 0.38, s * 0.24, 0, Math.PI, 0);
-    if (!empty) c.fill();
+    c.fill();
     c.stroke();
+    c.fillStyle = '#6aa84f';
+    c.fillRect(-bw * 0.36, -bh * 0.3, bw * 0.72, s * 0.06);
     c.fillStyle = '#d11b1b';
     c.beginPath();
     c.moveTo(-bw / 2, -bh * 0.2);
@@ -480,10 +539,33 @@ function drawOrder(
     c.fill();
     c.stroke();
     c.fillStyle = '#f5edd9';
-    for (let i = -1; i <= 1; i += 2) {
-      c.fillRect(i * bw * 0.16 - s * 0.05, -bh * 0.1, s * 0.1, s * 0.1);
-    }
+    for (let i = -1; i <= 1; i += 2) c.fillRect(i * bw * 0.16 - s * 0.05, -bh * 0.1, s * 0.1, s * 0.1);
   }
+  c.restore();
+}
+
+function drawMugFilling(c: CanvasRenderingContext2D, x: number, y: number, s: number, fill: number): void {
+  const bw = s * 0.5;
+  const bh = s * 0.62;
+  c.save();
+  c.translate(x - s * 0.06, y);
+  c.lineWidth = 2;
+  c.strokeStyle = '#f5edd9';
+  c.beginPath();
+  c.arc(bw / 2, 0, s * 0.16, -Math.PI / 2, Math.PI / 2);
+  c.stroke();
+  c.save();
+  roundRect(c, -bw / 2, -bh / 2, bw, bh, s * 0.06);
+  c.clip();
+  c.fillStyle = '#f4b223';
+  c.fillRect(-bw / 2, bh / 2 - bh * fill, bw, bh * fill);
+  if (fill > 0.15) {
+    c.fillStyle = '#fff8e6';
+    c.fillRect(-bw / 2, bh / 2 - bh * fill, bw, Math.min(bh * 0.18, bh * fill));
+  }
+  c.restore();
+  roundRect(c, -bw / 2, -bh / 2, bw, bh, s * 0.06);
+  c.stroke();
   c.restore();
 }
 
@@ -497,5 +579,3 @@ function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number,
   c.arcTo(x, y, x + w, y, rr);
   c.closePath();
 }
-
-export const FRAME_MS = TICK_MS;

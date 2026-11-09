@@ -250,25 +250,134 @@ body:not(.mode-title) .sound-btn {
 .card-small {
   width: min(100%, 320px);
 }
-.logo {
-  display: block;
-  width: min(86%, 320px);
-  height: auto;
-  margin: 0 auto 2px;
-}
-.title-row {
+.brand-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 2%;
+}
+.logo {
+  width: 44%;
+  max-width: 190px;
+  height: auto;
 }
 .mascot {
-  width: 104px;
+  width: 30%;
+  max-width: 130px;
   height: auto;
-  margin-right: -14px;
-  transform: rotate(4deg);
+  transform: rotate(3deg);
   pointer-events: none;
 }
+.beta {
+  display: inline-block;
+  vertical-align: 0.6em;
+  margin-left: 4px;
+  padding: 2px 8px 3px;
+  border-radius: 999px;
+  background: var(--beer-gold);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Head Goat Notes: the in-house notice format (artwork with the message area left blank). */
+.hgn {
+  position: relative;
+  container-type: inline-size;
+  margin: 10px 0 2px;
+  aspect-ratio: 1254 / 880;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+.hgn-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+.hgn-text {
+  position: absolute;
+  left: 10.8%;
+  top: 30.5%;
+  width: 56%;
+  margin: 0;
+  text-align: left;
+  font-family: 'Arvo', Georgia, serif;
+  font-size: 4.3cqw;
+  line-height: 1.32;
+  color: #1f1c19;
+}
+.hgn-text p {
+  margin: 0;
+}
+.hgn-sign {
+  margin-top: 0.5em !important;
+}
+.prize-teaser {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+
+/* ---------- Legend shown during the first part of the shift ---------- */
+.legend {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(20, 12, 7, 0.78);
+  color: var(--cream);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+/* Sits in the goat's back-bar area, on the side away from the goat (set from main.ts). */
+.legend.at-bottom {
+  bottom: calc(10px + var(--safe-b));
+}
+.legend.at-top {
+  top: calc(var(--hud-h) + 8px + var(--safe-t));
+}
+.legend.at-left {
+  left: calc(10px + var(--safe-l));
+}
+.legend.at-right {
+  right: calc(10px + var(--safe-r));
+}
+.legend[hidden] {
+  display: none;
+}
+.lg-red,
+.lg-gold {
+  padding: 1px 7px;
+  border-radius: 999px;
+  margin-right: 3px;
+}
+.lg-red {
+  background: var(--goat-red);
+  color: var(--cream);
+}
+.lg-gold {
+  background: var(--beer-gold);
+  color: var(--ink);
+}
+
 .brush {
   font-family: var(--brush);
   font-weight: 400;
@@ -421,43 +530,39 @@ h2.brush {
 
 @media (orientation: landscape) and (max-height: 520px) {
   .card {
-    width: min(100%, 640px);
+    width: min(100%, 680px);
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 0.85fr 1.15fr;
     column-gap: 18px;
-    text-align: left;
     align-items: center;
   }
   .card > * {
     grid-column: 1;
   }
-  .card .howto,
+  .card .hgn,
   .card .btn,
-  .card .fine,
   .card .keys,
   .card .stats {
     grid-column: 2;
   }
-  .card .howto {
+  .title-card .hgn {
     grid-row: 1 / span 3;
     margin: 0;
-  }
-  .card .brush::after {
-    margin-left: 0;
-  }
-  .mascot {
-    display: none;
-  }
-  .title-row {
-    justify-content: flex-start;
   }
   .card-small {
     display: block;
     width: min(100%, 320px);
-    text-align: center;
   }
-  .card-small .brush::after {
-    margin-left: auto;
+  .logo {
+    max-width: 130px;
+  }
+  .mascot {
+    max-width: 92px;
+  }
+  .howto {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin: 0;
   }
 }
 

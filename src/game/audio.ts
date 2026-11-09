@@ -1,6 +1,6 @@
 // Tiny synthesized sound effects (no audio files, nothing to license). Off by default.
 
-type Sfx = 'launch' | 'serve' | 'catch' | 'loss' | 'phase' | 'over';
+type Sfx = 'toss' | 'pour' | 'serve' | 'refuse' | 'catch' | 'loss' | 'phase' | 'over';
 
 export class Sound {
   private ctx: AudioContext | null = null;
@@ -26,8 +26,16 @@ export class Sound {
     const c = this.ctx;
     const t = c.currentTime;
     switch (name) {
-      case 'launch':
-        this.noise(t, 0.09, 1800, 600, 0.05);
+      case 'toss':
+        this.noise(t, 0.07, 2600, 900, 0.05);
+        break;
+      case 'pour':
+        this.noise(t, 0.14, 1400, 500, 0.05);
+        this.tone(t + 0.02, 'sine', 1700, 0.05, 0.04);
+        break;
+      case 'refuse':
+        this.tone(t, 'square', 220, 0.09, 0.05);
+        this.tone(t + 0.11, 'square', 196, 0.12, 0.05);
         break;
       case 'serve':
         this.tone(t, 'triangle', 880, 0.08, 0.12);

@@ -1,7 +1,7 @@
 // Tuning knobs for "Slide 'Em". Any change that affects scoring must bump SIM_VERSION,
 // and should only ship at a competition-period boundary (see docs/GAME-DESIGN.md).
 
-export const SIM_VERSION = 1;
+export const SIM_VERSION = 2;
 export const GAME_SLUG = 'slide-em';
 
 export const TICK_HZ = 60;
@@ -13,8 +13,11 @@ export const LANE_LEN = 100_000;
 
 export const START_LIPS = 3;
 
-/** Ticks of holding to fill one order (~0.27 s). Holding longer keeps pouring. */
-export const POUR_TICKS = 16;
+/** A press released within this many ticks (~0.2 s) is a tap: it tosses a sandwich basket
+ *  down the bar the goat is standing at. */
+export const TAP_TICKS = 12;
+/** Holding this long (~0.4 s) pours a beer, which slides when full. Keep holding to pour another. */
+export const BEER_TICKS = 24;
 /** Full orders slide toward the door. ~45 ticks to cross. */
 export const MUG_SPEED = 2_200;
 /** Empties slide back toward the goat. ~150 ticks to cross. */
@@ -46,24 +49,26 @@ export const SPAWN_GAP_JITTER_PCT = 30;
 
 export const PHASE_TICKS = 40 * TICK_HZ;
 export const PHASES = ['Lunch Rush', 'Afternoon Jazz', 'Open Mic', 'Band Night', 'Last Call'] as const;
-/** Chance (out of 100) that a patron wants food rather than a drink, per phase. Cosmetic only. */
+/** Chance (out of 100) that a patron wants food (a basket) rather than a beer, per phase. */
 export const CHEW_PCT_BY_PHASE = [70, 30, 35, 20, 25] as const;
 
 /** The shift ends on its own after 15 minutes of live play ("closing time"). */
 export const MAX_ACTIVE_TICKS = 15 * 60 * TICK_HZ;
 export const MAX_TOTAL_TICKS = MAX_ACTIVE_TICKS + START_LIPS * STUN_TICKS + 600;
 
-export const POINTS_SERVE = 100;
+export const POINTS_CHEW = 100;
+export const POINTS_BREW = 150;
 export const POINTS_CATCH = 50;
 /** Every STREAK_STEP serves in a row raises the multiplier by one, up to MAX_MULT. */
 export const STREAK_STEP = 8;
 export const MAX_MULT = 5;
 
 // Replay input codes
-// 0..3  press on lane n (step over and start pouring)
-// 4..7  step to lane n (keyboard arrows; keeps pouring if already holding)
-// 8     release (stop pouring)
-// 9     press where the goat stands (keyboard space)
+// 0..3  press on lane n: if the goat is elsewhere it steps there (and a hold pours a beer there);
+//       if it's already there, a tap tosses a basket and a hold pours a beer
+// 4..7  step to lane n (keyboard arrows)
+// 8     release (a tap tosses a basket on release)
+// 9     press where the goat stands (keyboard Space)
 export const INPUT_MOVE_BASE = 4;
 export const INPUT_RELEASE = 8;
 export const INPUT_PRESS_HERE = 9;

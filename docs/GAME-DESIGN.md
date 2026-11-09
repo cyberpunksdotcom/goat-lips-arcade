@@ -2,22 +2,25 @@
 
 ## The pitch
 
-You're the Goat Lips goat waiter. Patrons walk down four bars toward you, each wanting food or a drink. Slide their orders to them before they reach you, and grab the empty mugs they slide back. The shift moves from the lunch rush to last call and keeps getting busier. Three lips (lives).
+You're the Goat Lips goat waiter. Patrons walk down four bars toward you, each wanting a sandwich basket or a beer. Tap to toss a basket, hold to pour a beer, and grab the empty mugs they slide back. The shift moves from the lunch rush to last call and keeps getting busier. Three lips (lives).
 
 ## Controls
 
 | Action | Touch | Keyboard |
 | --- | --- | --- |
-| Step to a bar | Tap the bar | ← → (or ↑ ↓), 1–4 |
-| Pour and slide | Hold on the bar (about ¼ second fills one order; keep holding to pour more) | Hold Space |
+| Step to a bar | Tap that bar | ← → (or ↑ ↓), 1–4 |
+| Toss a sandwich basket | Tap the bar the goat is already at | Tap Space |
+| Pour a beer | Hold any bar (about 0.4 s fills a mug, which slides when full; keep holding for more) | Hold Space |
 | Pause | Pause button, or switch apps | P / Esc |
 
 Each lane is a full-height (or full-width) tap target. The game works in portrait and landscape and respects the notch and home bar.
 
 ## Rules
 
-- **Serve:** an order sliding down a bar is taken by the first patron it reaches.
-  - 100 points × your streak multiplier.
+- **Orders:** each patron's bubble shows what they want: a red ring is a sandwich basket (tap), a gold ring is a beer (hold).
+- **Serve:** an order sliding down a bar reaches the first patron in line.
+  - The right order scores 100 (basket) or 150 (beer) × your streak multiplier.
+  - The wrong order is sent back: no points and the streak resets, but no lip is lost. The patron keeps coming.
   - The multiplier goes up by one every 8 serves in a row, to a maximum of ×5.
 - **Food stays, drinks come back:** after a short drink, a patron slides the empty mug back. Food baskets never come back.
 - **Grab empties:** a returning mug teeters at your end for about 1¼ seconds. Step into that bar to grab it for +50.
@@ -46,10 +49,10 @@ All the numbers are in `src/sim/constants.ts`. Run `npm run tune` for a difficul
 
 | Player (bot) | Median survival (Nov 8 tuning) |
 | --- | --- |
-| Idle (does nothing) | ~29 s |
-| Distracted (slow, 15% wrong lane) | ~4 min |
-| Casual (steady, 8% wrong lane) | ~6½ min |
-| Sharp (fast, 3% wrong lane) | ~12 min |
+| Idle (does nothing) | ~30 s |
+| Distracted (slow, 15% mistakes) | ~1½ min |
+| Casual (steady, 8% mistakes) | ~3 min |
+| Sharp (fast, 3% mistakes) | ~4 min |
 
 The bots read every lane at once, which people can't, so real players will land well below these numbers. **Retune after watching real people play.** Expect typical first games to last 1–2½ minutes.
 
@@ -68,10 +71,12 @@ The bots read every lane at once, which people can't, so real players will land 
 
 | Code | Meaning |
 | --- | --- |
-| 0–3 | Press on lane n (step there and start pouring) |
-| 4–7 | Step to lane n (keyboard; keeps pouring if Space is held) |
-| 8 | Release |
+| 0–3 | Press on lane n. If the goat is elsewhere it steps there; if it's already there, this starts a tap or a hold |
+| 4–7 | Step to lane n (keyboard) |
+| 8 | Release. Within 12 ticks of a press where the goat already stood, this tosses a basket |
 | 9 | Press where the goat stands (Space) |
+
+`SIM_VERSION` is 2 since these controls (Nov 8, 2026).
 
 ## Ideas parked for later
 

@@ -16,7 +16,7 @@
 - **[One prize per person per calendar month. If the top player already won that month, the prize goes to the next-highest eligible score.]**
 
 **6. Prize.**
-- **[Prize description, e.g., one free (non-alcoholic) item up to $X in value]**.
+- A **$25 Goat Lips gift certificate [confirm wording]**, one per week.
 - No cash value. Not transferable. Can't be combined with other offers.
 
 **7. Claiming.**

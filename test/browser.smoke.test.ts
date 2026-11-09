@@ -1,6 +1,6 @@
 // End-to-end check in real Chrome: play a run with touch input on a phone-sized screen, then
 // verify the recorded run with the same code the server will use.
-// Run: CHROME_PATH=/path/to/chrome npm run smoke   (skipped when CHROME_PATH is not set)
+// Run: CHROME_PATH=/path/to/chrome npm run smoke
 // Screenshots land in test-output/ (git-ignored).
 
 import { mkdirSync } from 'node:fs';
@@ -14,24 +14,41 @@ const CHROME = process.env.CHROME_PATH;
 const URL = pathToFileURL(resolve('dist-single/index.html')).href;
 const OUT = resolve('test-output');
 
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+function lanePoint(lane: number, w: number, h: number, portrait: boolean): [number, number] {
+  return portrait ? [(w / 4) * (lane + 0.5), h * 0.5] : [w * 0.5, 52 + ((h - 56) / 4) * (lane + 0.5)];
+}
+
+/** Alternates a double tap (step over, then toss a basket) with a long hold (pour a beer). */
 async function playRandomly(page: Page, ms: number, w: number, h: number, portrait: boolean) {
   const start = Date.now();
   let i = 0;
   while (Date.now() - start < ms) {
     const over = await page.evaluate(() => !!(window as unknown as { __lastRun?: unknown }).__lastRun);
     if (over) break;
-    const lane = (i * 7 + (i >> 2)) % 4;
-    const x = portrait ? (w / 4) * (lane + 0.5) : w * 0.5;
-    const y = portrait ? h * 0.5 : 52 + ((h - 56) / 4) * (lane + 0.5);
-    await page.touchscreen.touchStart(x, y);
-    await new Promise((r) => setTimeout(r, i % 3 === 0 ? 90 : 320));
-    await page.touchscreen.touchEnd();
-    await new Promise((r) => setTimeout(r, 160));
+    const [x, y] = lanePoint((i * 7 + (i >> 2)) % 4, w, h, portrait);
+    if (i % 2 === 0) {
+      for (let k = 0; k < 2; k++) {
+        await page.touchscreen.touchStart(x, y);
+        await wait(70);
+        await page.touchscreen.touchEnd();
+        await wait(110);
+      }
+    } else {
+      await page.touchscreen.touchStart(x, y);
+      await wait(520);
+      await page.touchscreen.touchEnd();
+    }
+    await wait(150);
     i++;
   }
 }
 
-describe.skipIf(!CHROME)('browser smoke test', () => {
+// Only under `npm run smoke`, which builds dist-single first (a stale build would fail the check).
+const RUN = !!CHROME && process.env.npm_lifecycle_event === 'smoke';
+
+describe.skipIf(!RUN)('browser smoke test', () => {
   it('plays on a phone in portrait and landscape; the browser run verifies exactly', async () => {
     mkdirSync(OUT, { recursive: true });
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
@@ -49,8 +66,13 @@ describe.skipIf(!CHROME)('browser smoke test', () => {
       await page.tap('#play-btn');
       await new Promise((r) => setTimeout(r, 2600));
       await page.screenshot({ path: `${OUT}/2-start-portrait.png` });
-      await playRandomly(page, 9_000, 390, 844, true);
+      await playRandomly(page, 7_000, 390, 844, true);
+      // Mid-pour: the beer meter should show at the end of the bar.
+      const [hx, hy] = lanePoint(2, 390, 844, true);
+      await page.touchscreen.touchStart(hx, hy);
+      await wait(260);
       await page.screenshot({ path: `${OUT}/3-mid-portrait.png` });
+      await page.touchscreen.touchEnd();
       await playRandomly(page, 120_000, 390, 844, true);
       await page.waitForFunction(() => !!(window as unknown as { __lastRun?: unknown }).__lastRun, { timeout: 120_000 });
       await new Promise((r) => setTimeout(r, 900));
